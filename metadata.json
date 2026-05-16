@@ -1,0 +1,10 @@
+{
+  "name": "Remote Bank Account Opening Prototype",
+  "description": "A high-tech, professional mobile banking application prototype for remote corporate account opening, featuring document capture and facial recognition login aesthetics.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
