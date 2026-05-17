@@ -21,7 +21,8 @@ import {
   PenTool,
   ChevronDown,
   Smile,
-  Landmark
+  Landmark,
+  Trash2
 } from 'lucide-react';
 import { translations } from './i18n';
 
@@ -58,7 +59,7 @@ const Page1Login = ({ onNext, username, setUsername, lang, setLang, t }: any) =>
   };
 
   return (
-    <div className="flex flex-col h-full bg-white p-5 overflow-y-auto">
+    <div className="flex flex-col h-full bg-white p-5 md:p-8 lg:p-5 overflow-y-auto">
       <div className="flex justify-end pt-2 gap-2 relative z-50 shrink-0">
         <button 
           onClick={() => setShowLangMenu(!showLangMenu)}
@@ -93,7 +94,7 @@ const Page1Login = ({ onNext, username, setUsername, lang, setLang, t }: any) =>
           <p className="text-black font-medium text-sm sm:text-base">{t("login_subtitle")}</p>
         </div>
 
-        <div className="w-full max-w-sm space-y-3">
+        <div className="w-full max-w-sm md:max-w-xl lg:max-w-sm space-y-3">
           <div>
             <input 
               type="text" 
@@ -130,7 +131,7 @@ const Page1Login = ({ onNext, username, setUsername, lang, setLang, t }: any) =>
         </div>
       </div>
 
-      <div className="pb-4 pt-2 shrink-0 w-full max-w-[280px] mx-auto mt-auto">
+      <div className="pb-4 pt-2 shrink-0 w-full max-w-[280px] md:max-w-md lg:max-w-[280px] mx-auto mt-auto">
         <Button onClick={handleNext} className="!py-3 !text-base">
           {t("login_btn")} <ChevronRight size={20} />
         </Button>
@@ -172,7 +173,7 @@ const Page2BasicInfo = ({ onNext, onPrev, formData, setFormData, username, t }: 
         </div>
       </div>
 
-      <div className="flex-1 shrink-0 p-5 space-y-4">
+      <div className="flex-1 shrink-0 p-5 md:p-8 lg:p-5 space-y-4">
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-gray-600 block">{t("company_type")} <span className="text-red-500">*</span></label>
           <div className="relative">
@@ -268,7 +269,7 @@ const Page3Checklist = ({ onNext, onPrev, formData, t }: any) => {
         <h2 className="text-xl font-bold text-gray-800">{t("doc_list_title")}</h2>
       </div>
 
-      <div className="flex-1 shrink-0 p-5 space-y-5">
+      <div className="flex-1 shrink-0 p-5 md:p-8 lg:p-5 space-y-5">
         <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
           <p className="text-sm text-red-800 mb-2 font-medium">{t("based_on_options")}</p>
           <div className="flex flex-wrap gap-2 text-sm font-semibold text-red-900">
@@ -313,13 +314,24 @@ const Page3Checklist = ({ onNext, onPrev, formData, t }: any) => {
   );
 };
 
-const Page4Camera = ({ onNext, onPrev, t }: any) => {
-  const [photos, setPhotos] = useState<number>(0);
+const Page4Camera = ({ onNext, onPrev, formData, capturedDocs, setCapturedDocs, t }: any) => {
   const [showPrompt, setShowPrompt] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState("");
   
   // Real camera ref for desktop simulation
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasCamera, setHasCamera] = useState(false);
+
+  const docOptions = [
+    t("br"),
+    t("ci"),
+    t("nnc1"),
+    t("ma"),
+    `${formData?.shareholders || "0"} ${t("hkid_shareholder")}`,
+    `${formData?.signers || "0"} ${t("hkid_signer")}`
+  ];
 
   useEffect(() => {
     // Attempt to start camera for desktop prototype feel
@@ -340,28 +352,65 @@ const Page4Camera = ({ onNext, onPrev, t }: any) => {
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
          const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-         tracks.forEach(t => t.stop());
+         tracks.forEach(track => track.stop());
       }
     }
   }, []);
 
-  const handleCapture = () => {
-    setPhotos(p => p + 1);
-    setShowPrompt(true);
+  const handleCapture = (e?: React.ChangeEvent<HTMLInputElement>) => {
+    if (e && e.target.files && e.target.files[0]) {
+       const file = e.target.files[0];
+       const reader = new FileReader();
+       reader.onloadend = () => {
+         setPreviewImage(reader.result as string);
+         setSelectedDoc(docOptions[0]);
+         setShowPrompt(true);
+       };
+       reader.readAsDataURL(file);
+    } else if (hasCamera && videoRef.current && canvasRef.current) {
+       const canvas = canvasRef.current;
+       const video = videoRef.current;
+       canvas.width = video.videoWidth;
+       canvas.height = video.videoHeight;
+       const ctx = canvas.getContext('2d');
+       if (ctx) {
+         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+         setPreviewImage(canvas.toDataURL('image/jpeg'));
+         setSelectedDoc(docOptions[0]);
+         setShowPrompt(true);
+       }
+    }
   };
 
-  const handleNextPhoto = () => {
+  const handleRetake = () => {
+    setPreviewImage(null);
     setShowPrompt(false);
+    setSelectedDoc("");
+  };
+
+  const saveAndNextDoc = () => {
+    if (!selectedDoc) return;
+    setCapturedDocs([...capturedDocs, { type: selectedDoc, image: previewImage }]);
+    handleRetake();
+  };
+
+  const saveAndFinish = () => {
+    if (!selectedDoc) return;
+    setCapturedDocs([...capturedDocs, { type: selectedDoc, image: previewImage }]);
+    onNext();
   };
 
   return (
     <div className="flex flex-col h-full bg-black">
       <div className="p-4 flex justify-between items-center z-20 text-white relative">
         <button onClick={onPrev} className="p-2"><ChevronLeft size={28} /></button>
-        <div className="font-medium bg-black/50 px-3 py-1 rounded-full text-sm">{t("captured")} {photos} {t("docs_count")}</div>
+        <div className="font-medium bg-black/50 px-3 py-1 rounded-full text-sm">{t("captured")} {capturedDocs.length} {t("docs_count")}</div>
       </div>
 
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        {/* Hidden canvas for capturing video frames */}
+        <canvas ref={canvasRef} className="hidden" />
+
         {/* Native Mobile Camera Input Element (Hidden, triggered via label mostly, but here we place it overlapping) */}
         {!hasCamera && (
            <label className="absolute inset-0 z-10 flex flex-col items-center justify-center cursor-pointer">
@@ -408,8 +457,8 @@ const Page4Camera = ({ onNext, onPrev, t }: any) => {
       <div className="h-32 bg-black flex items-center justify-center relative z-20 pb-4">
         {hasCamera && !showPrompt && (
           <button 
-             onClick={handleCapture}
-             className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-1 active:scale-95 transition-transform"
+             onClick={() => handleCapture()}
+             className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-1 active:scale-95 transition-transform cursor-pointer"
           >
              <div className="w-full h-full border-2 border-black rounded-full" />
           </button>
@@ -418,21 +467,34 @@ const Page4Camera = ({ onNext, onPrev, t }: any) => {
 
       {/* Completion Prompt Modal */}
       <AnimatePresence>
-        {showPrompt && (
+        {showPrompt && previewImage && (
           <motion.div 
             initial={{ opacity: 0, y: 50 }} 
             animate={{ opacity: 1, y: 0 }} 
             exit={{ opacity: 0, y: 50 }}
-            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 shadow-2xl z-50 flex flex-col gap-4"
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 shadow-2xl z-50 flex flex-col gap-4 max-h-[85vh] overflow-y-auto"
           >
-            <div className="flex items-center gap-3 text-green-600 font-bold text-xl mb-2">
-              <CheckCircle2 size={28} />
+            <h3 className="font-bold text-center text-gray-800 text-lg">
               {t("capture_success")}
+            </h3>
+            
+            <div className="relative w-full aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden shadow-inner border border-gray-200">
+               <img src={previewImage} alt="Preview" className="w-full h-full object-contain" />
             </div>
-            <p className="text-gray-600 font-medium">{t("capture_success_desc")}</p>
-            <div className="flex gap-4 mt-2">
-              <Button variant="secondary" onClick={handleNextPhoto} className="w-1/2 text-sm">{t("capture_next")}</Button>
-              <Button variant="primary" onClick={onNext} className="w-1/2 text-sm">{t("capture_finish")}</Button>
+
+            <div className="flex flex-col gap-4">
+              <select 
+                className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 font-medium"
+                value={selectedDoc}
+                onChange={(e) => setSelectedDoc(e.target.value)}
+              >
+                {docOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <Button variant="secondary" onClick={handleRetake} className="col-span-2 text-sm max-h-12 border border-gray-300 bg-white text-gray-700">{t("retake")}</Button>
+                <Button variant="secondary" onClick={saveAndNextDoc} className="text-sm max-h-12 border border-gray-300 bg-white text-gray-700">{t("capture_next")}</Button>
+                <Button variant="primary" onClick={saveAndFinish} className="text-sm max-h-12 border border-red-700">{t("capture_finish")}</Button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -440,6 +502,62 @@ const Page4Camera = ({ onNext, onPrev, t }: any) => {
     </div>
   );
 };
+
+const Page5Summary = ({ onNext, onPrev, capturedDocs, setCapturedDocs, t }: any) => {
+  return (
+    <div className="flex flex-col h-full bg-gray-50 overflow-y-auto">
+      <div className="bg-white px-5 py-3 shadow-sm sticky top-0 z-10 shrink-0 border-b border-gray-100 flex justify-between items-center">
+        <h2 className="text-xl font-bold text-gray-800">{t("doc_summary_title")}</h2>
+        <div className="bg-red-50 text-red-800 font-bold px-3 py-1 rounded-full text-sm">
+          {capturedDocs.length} {t("docs_count")}
+        </div>
+      </div>
+
+      <div className="flex-1 shrink-0 p-5 md:p-8 lg:p-5 space-y-4">
+        {capturedDocs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-48 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-500">
+            <CameraIcon size={48} className="mb-2 opacity-50" />
+            <p className="font-medium">{t("no_docs_captured")}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {capturedDocs.map((doc: any, i: number) => (
+              <div key={i} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200 flex flex-col relative group">
+                <div className="aspect-[4/3] bg-gray-100 border-b border-gray-100 relative">
+                  <img src={doc.image} alt={doc.type} className="w-full h-full object-cover" />
+                  <div className="absolute top-2 left-2 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-md">
+                    {i + 1}
+                  </div>
+                  <button 
+                    onClick={() => {
+                        const newDocs = [...capturedDocs];
+                        newDocs.splice(i, 1);
+                        setCapturedDocs(newDocs);
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg flex items-center justify-center shadow-md active:scale-95 transition-all text-red-100 hover:text-white"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="p-3">
+                  <p className="text-xs font-bold text-gray-800 leading-tight block truncate" title={doc.type}>
+                    {doc.type}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 bg-white border-t border-gray-100 flex gap-4 shrink-0 mt-auto items-center">
+        <Button variant="secondary" onClick={onPrev} className="w-1/2 flex-1 text-xs sm:text-sm !px-1 whitespace-pre-wrap leading-tight h-full items-center justify-center text-center">{t("back_to_take_more")}</Button>
+        <Button variant="primary" onClick={onNext} className="w-1/2 flex-1 text-xs sm:text-sm !px-1 whitespace-pre-wrap leading-tight h-full items-center justify-center text-center">{t("next_step")} <ChevronRight size={18} /></Button>
+      </div>
+    </div>
+  );
+};
+
 
 
 const Page5Review = ({ onNext, onPrev, t }: any) => {
@@ -451,7 +569,7 @@ const Page5Review = ({ onNext, onPrev, t }: any) => {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-2xl overflow-hidden max-w-sm w-full" 
+        className="bg-white rounded-2xl overflow-hidden max-w-sm md:max-w-2xl lg:max-w-sm w-full" 
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
@@ -500,7 +618,7 @@ const Page5Review = ({ onNext, onPrev, t }: any) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-4 space-y-4">
         
         {/* Company Card */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
@@ -716,7 +834,7 @@ const Page6Signature = ({ onNext, onPrev, t }: any) => {
         <p className="text-sm text-gray-500 mt-1">{t("signer_desc")}</p>
       </div>
 
-      <div className="flex-1 shrink-0 p-4 space-y-6">
+      <div className="flex-1 shrink-0 p-4 md:p-8 lg:p-4 space-y-6">
         <div className="space-y-1">
           <SignaturePad t={t} title={`${t("signer_1")} (Chan Tai Man)`} onCanvasChange={(status) => { setSigned1(status); if(status) setErrors(false); }} hasError={errors && !signed1} />
           {errors && !signed1 && <p className="text-red-500 text-sm mt-1 font-medium px-1">{t("error_signer")}</p>}
@@ -778,9 +896,9 @@ const Page7Success = ({ onFinish, t }: any) => {
          initial={{ opacity: 0 }}
          animate={{ opacity: 1 }}
          transition={{ delay: 0.8 }}
-         className="relative z-10 space-y-4 max-w-sm"
+         className="relative z-10 space-y-4 max-w-sm md:max-w-xl lg:max-w-sm"
       >
-        <h1 className="text-3xl font-extrabold tracking-tight drop-shadow-md">{t("success_title")}</h1>
+        <h1 className="text-3xl md:text-5xl lg:text-3xl font-extrabold tracking-tight drop-shadow-md">{t("success_title")}</h1>
         <p className="text-white/90 text-lg leading-relaxed font-medium drop-shadow-sm whitespace-pre-wrap">{t("success_desc")}</p>
       </motion.div>
 
@@ -788,7 +906,7 @@ const Page7Success = ({ onFinish, t }: any) => {
          initial={{ y: 20, opacity: 0 }}
          animate={{ y: 0, opacity: 1 }}
          transition={{ delay: 1 }}
-         className="relative z-10 w-full max-w-sm pt-8"
+         className="relative z-10 w-full max-w-sm md:max-w-md lg:max-w-sm pt-8"
       >
         <button 
           onClick={onFinish}
@@ -822,11 +940,16 @@ export default function App() {
   });
 
   const [step, setStep] = useState(1);
-  const totalSteps = 7;
+  const totalSteps = 8;
+
+  const [capturedDocs, setCapturedDocs] = useState<{type: string, image: string}[]>([]);
 
   const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
-  const reset = () => setStep(1);
+  const reset = () => {
+    setStep(1);
+    setCapturedDocs([]);
+  };
 
   const slideVariants = {
     enter: (direction: number) => ({
@@ -859,11 +982,11 @@ export default function App() {
   return (
     <div className="w-full h-screen bg-black flex items-center justify-center font-sans overflow-hidden">
       
-      {/* Phone frame simulation for Desktop, full screen on Mobile */}
-      <div className="relative w-full h-full sm:w-[414px] sm:h-[896px] sm:max-h-[95vh] bg-white sm:rounded-[40px] sm:shadow-2xl overflow-hidden flex flex-col sm:border-[12px] border-black">
+      {/* Phone frame simulation for Desktop (lg+), full screen on Mobile & Tablet */}
+      <div className="relative w-full h-full lg:w-[414px] lg:h-[896px] lg:max-h-[95vh] bg-white lg:rounded-[40px] lg:shadow-2xl overflow-hidden flex flex-col lg:border-[12px] border-black">
         
         {/* Fake Phone Notch - Desktop only visually */}
-        <div className="hidden sm:block absolute top-0 inset-x-0 h-6 z-50 pointer-events-none">
+        <div className="hidden lg:block absolute top-0 inset-x-0 h-6 z-50 pointer-events-none">
           <div className="w-40 h-6 bg-black rounded-b-3xl mx-auto flex gap-4 items-center justify-center pt-2">
              <div className="w-2 h-2 rounded-full bg-gray-800"></div>
              <div className="w-12 h-2 rounded-full bg-gray-800"></div>
@@ -889,10 +1012,11 @@ export default function App() {
               {step === 1 && <Page1Login onNext={nextStep} username={username} setUsername={setUsername} lang={lang} setLang={setLang} t={t} />}
               {step === 2 && <Page2BasicInfo onNext={nextStep} onPrev={prevStep} formData={formData} setFormData={setFormData} username={username} t={t} />}
               {step === 3 && <Page3Checklist onNext={nextStep} onPrev={prevStep} formData={formData} t={t} />}
-              {step === 4 && <Page4Camera onNext={nextStep} onPrev={prevStep} t={t} />}
-              {step === 5 && <Page5Review onNext={nextStep} onPrev={prevStep} t={t} />}
-              {step === 6 && <Page6Signature onNext={nextStep} onPrev={prevStep} t={t} />}
-              {step === 7 && <Page7Success onFinish={reset} t={t} />}
+              {step === 4 && <Page4Camera onNext={nextStep} onPrev={prevStep} formData={formData} capturedDocs={capturedDocs} setCapturedDocs={setCapturedDocs} t={t} />}
+              {step === 5 && <Page5Summary onNext={nextStep} onPrev={prevStep} capturedDocs={capturedDocs} setCapturedDocs={setCapturedDocs} t={t} />}
+              {step === 6 && <Page5Review onNext={nextStep} onPrev={prevStep} t={t} />}
+              {step === 7 && <Page6Signature onNext={nextStep} onPrev={prevStep} t={t} />}
+              {step === 8 && <Page7Success onFinish={reset} t={t} />}
             </motion.div>
           </AnimatePresence>
         </div>
